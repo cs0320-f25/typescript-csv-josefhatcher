@@ -1,37 +1,64 @@
-import * as fs from "fs";
-import * as readline from "readline";
+import { parseCSV } from "../src/basic-parser";
+import * as path from "path";
+import { z } from "zod";
 
-/**
- * This is a JSDoc comment. Similar to JavaDoc, it documents a public-facing
- * function for others to use. Most modern editors will show the comment when 
- * mousing over this function name. Try it in run-parser.ts!
- * 
- * File I/O in TypeScript is "asynchronous", meaning that we can't just
- * read the file and return its contents. You'll learn more about this 
- * in class. For now, just leave the "async" and "await" where they are. 
- * You shouldn't need to alter them.
- * 
- * @param path The path to the file being loaded.
- * @returns a "promise" to produce a 2-d array of cell values
- */
-export async function parseCSV(path: string): Promise<string[][]> {
-  // This initial block of code reads from a file in Node.js. The "rl"
-  // value can be iterated over in a "for" loop. 
-  const fileStream = fs.createReadStream(path);
-  const rl = readline.createInterface({
-    input: fileStream,
-    crlfDelay: Infinity, // handle different line endings
-  });
-  
-  // Create an empty array to hold the results
-  let result = []
-  
-  // We add the "await" here because file I/O is asynchronous. 
-  // We need to force TypeScript to _wait_ for a row before moving on. 
-  // More on this in class soon!
-  for await (const line of rl) {
-    const values = line.split(",").map((v) => v.trim());
-    result.push(values)
+
+const PEOPLE_CSV_PATH = path.join(__dirname, "../data/people.csv");
+
+test("parseCSV yields arrays", async () => {
+  const results = await parseCSV(PEOPLE_CSV_PATH);
+
+  expect(results).toHaveLength(5);
+  expect(results[0]).toEqual(["name", "age"]);
+  expect(results[1]).toEqual(["Alice", "23"]);
+  expect(results[2]).toEqual(["Bob", "thirty"]); // invalid number and this doesn't care
+  expect(results[3]).toEqual(["Charlie", "25"]);
+  expect(results[4]).toEqual(["Nim", "22"]);
+});
+
+test("people.csv has no empty fields", async () => {
+  const results = await parseCSV(PEOPLE_CSV_PATH);
+  for (const row of results) {
+    for (const cell of row) {
+      expect(cell).not.toEqual("");
+    }
   }
-  return result
-}
+});
+
+test("people.csv has consistent number of columns", async () => {
+  const results = await parseCSV(PEOPLE_CSV_PATH);
+  const headerLength = results[0].length;
+  for (const row of results) {
+    expect(row.length).toBe(headerLength);
+  }
+});
+
+test("people.csv allows multiple data rows", async () => {
+  const results = await parseCSV(PEOPLE_CSV_PATH);
+  // should include header + 4 data rows
+  expect(results.length).toBe(5);
+});
+
+test("age field can contain non-numeric strings (edge case)", async () => {
+  const results = await parseCSV(PEOPLE_CSV_PATH);
+  expect(results[2]).toEqual(["Bob", "thirty"]); // shows schema validation
+});
+
+test("parseCSV yields arrays", async () => {
+  const results = await parseCSV(PEOPLE_CSV_PATH)
+  
+  expect(results).toHaveLength(5);
+  expect(results[0]).toEqual(["name", "age"]);
+  expect(results[1]).toEqual(["Alice", "23"]);
+  expect(results[2]).toEqual(["Bob", "thirty"]); // why does this work? :(
+  expect(results[3]).toEqual(["Charlie", "25"]);
+  expect(results[4]).toEqual(["Nim", "22"]);
+});
+
+test("parseCSV yields only arrays", async () => {
+  const results = await parseCSV(PEOPLE_CSV_PATH)
+  for(const row of results) {
+    expect(Array.isArray(row)).toBe(true);
+  }
+});
+
